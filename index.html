@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kirim/Chiqim — Soddalashtirilgan</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#111827">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="left">💼 Kirim/Chiqim</div>
+    <nav class="nav">
+      <button class="tab-btn active" data-tab="tx">Yozuvlar</button>
+      <button class="tab-btn" data-tab="customers">Mijozlar</button>
+      <button class="tab-btn" data-tab="report">Hisobot</button>
+      <button class="tab-btn" data-tab="debts">Qarzdorlik</button>
+    </nav>
+    <div class="right">
+      <button id="exportCsvBtn" class="btn">CSV</button>
+      <button id="clearAllBtn" class="btn danger">Tozalash</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Transactions Tab -->
+    <section id="tab-tx" class="tab active">
+      <form id="txForm" class="card form">
+        <div class="row">
+          <select name="type" required>
+            <option value="kirim">Kirim</option>
+            <option value="chiqim">Chiqim</option>
+          </select>
+          <select name="payType" required>
+            <option value="naqd">Naqd</option>
+            <option value="karta">Karta</option>
+            <option value="nasiya">Nasiya</option>
+          </select>
+          <input type="number" name="amount" min="0" step="100" required placeholder="Miqdor (so‘m)">
+          <input type="date" name="date" required>
+        </div>
+        <div class="row">
+          <input type="text" name="category" placeholder="Kategoriya">
+          <input type="text" name="note" placeholder="Izoh">
+        </div>
+        <div class="row">
+          <select name="customerId" id="customerSelect">
+            <option value="">— Mijoz (ixtiyoriy) —</option>
+          </select>
+          <button type="button" id="quickAddCust" class="btn">+ Mijoz</button>
+          <label class="nasiya-only hidden">
+            <span style="font-size:12px;color:#9ca3af">Nasiya qoplandimi?</span>
+            <select name="settled">
+              <option value="yoq" selected>Yo‘q</option>
+              <option value="ha">Ha</option>
+            </select>
+          </label>
+        </div>
+        <div class="row end">
+          <button class="btn primary" type="submit">Saqlash</button>
+          <button class="btn" type="reset">Tozalash</button>
+        </div>
+      </form>
+
+      <div class="card filters">
+        <div class="row">
+          <input type="date" name="from" id="fFrom">
+          <input type="date" name="to" id="fTo">
+          <select id="fType">
+            <option value="">Barchasi</option>
+            <option value="kirim">Kirim</option>
+            <option value="chiqim">Chiqim</option>
+          </select>
+          <select id="fPay">
+            <option value="">To‘lov: barchasi</option>
+            <option value="naqd">Naqd</option>
+            <option value="karta">Karta</option>
+            <option value="nasiya">Nasiya</option>
+          </select>
+          <select id="fCustomer">
+            <option value="">Mijoz: barchasi</option>
+          </select>
+          <input type="text" id="fQ" placeholder="Qidiruv">
+        </div>
+      </div>
+
+      <div id="txList" class="list"></div>
+    </section>
+
+    <!-- Customers Tab -->
+    <section id="tab-customers" class="tab">
+      <form id="custForm" class="card form">
+        <div class="row">
+          <input type="text" name="name" placeholder="Mijoz ismi" required>
+          <input type="tel" name="phone" placeholder="Telefon (+998...)">
+          <button class="btn primary" type="submit">Qo‘shish</button>
+        </div>
+      </form>
+      <div id="custList" class="list"></div>
+    </section>
+
+    <!-- Report Tab (overall KPIs) -->
+    <section id="tab-report" class="tab">
+      <div class="card kpi">
+        <div class="kpi-item">
+          <div class="lbl">Kirim</div>
+          <div class="val" id="sumIncome">0</div>
+        </div>
+        <div class="kpi-item">
+          <div class="lbl">Chiqim</div>
+          <div class="val" id="sumExpense">0</div>
+        </div>
+        <div class="kpi-item">
+          <div class="lbl">Foyda</div>
+          <div class="val" id="sumProfit">0</div>
+        </div>
+        <div class="kpi-item">
+          <div class="lbl">Nasiya (qoplanmagan)</div>
+          <div class="val" id="sumDebt">0</div>
+        </div>
+      </div>
+      <div class="card">
+        <p class="muted">Eslatma: hisobotlar yuqoridagi filtrlar bo‘yicha hisoblanadi (Yozuvlar tabidagi filtrlar).</p>
+      </div>
+    </section>
+
+    <!-- Debts Tab (per-customer receivables) -->
+    <section id="tab-debts" class="tab">
+      <div class="card">
+        <div class="row end">
+          <button id="exportDebtCsvBtn" class="btn">Qarzdorlik CSV</button>
+        </div>
+        <div id="debtList" class="list"></div>
+      </div>
+    </section>
+  </main>
+
+  <template id="txTpl">
+    <div class="item">
+      <div class="col">
+        <div class="title"></div>
+        <div class="sub"></div>
+      </div>
+      <div class="amt"></div>
+      <div class="actions">
+        <button class="btn mini" data-action="toggle-settle">Qoplandi</button>
+        <button class="btn mini danger" data-action="delete">O‘chirish</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="custTpl">
+    <div class="item">
+      <div class="col">
+        <div class="title"></div>
+        <div class="sub"></div>
+      </div>
+      <div class="actions">
+        <button class="btn mini danger" data-action="delete">O‘chirish</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="debtTpl">
+    <div class="item">
+      <div class="col">
+        <div class="title"></div>
+        <div class="sub"></div>
+      </div>
+      <div class="amt"></div>
+      <div class="actions">
+        <button class="btn mini" data-action="filter">Ko‘rish</button>
+      </div>
+    </div>
+  </template>
+
+  <footer class="foot">Offline • IndexedDB • PWA</footer>
+
+  <script type="module" src="db.js"></script>
+  <script type="module" src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js');
+      });
+    }
+    document.querySelectorAll('.tab-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+        document.getElementById('tab-'+tab).classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>
