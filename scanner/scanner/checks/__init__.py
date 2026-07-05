@@ -22,6 +22,7 @@ class Context:
     crawl: CrawlOutput
     home: Response
     active: bool = True  # aktiv (payload yuboradigan) testlar yoqilganmi
+    check_default_creds: bool = False  # standart parollarni sinash (opt-in)
 
     def sample_pages(self, limit: int = 8):
         """Bir necha HTML sahifani tanlab qaytaradi (headerlar uchun)."""
@@ -47,6 +48,11 @@ from .xss import ReflectedXssCheck  # noqa: E402
 from .csrf import CsrfCheck  # noqa: E402
 from .clickjacking import ClickjackingCheck  # noqa: E402
 from .open_redirect import OpenRedirectCheck  # noqa: E402
+from .path_traversal import PathTraversalCheck  # noqa: E402
+from .command_injection import CommandInjectionCheck  # noqa: E402
+from .ssrf import SsrfCheck  # noqa: E402
+from .xxe import XxeCheck  # noqa: E402
+from .default_credentials import DefaultCredentialsCheck  # noqa: E402
 
 ALL_CHECKS: list[Check] = [
     SecurityHeadersCheck(),
@@ -59,6 +65,11 @@ ALL_CHECKS: list[Check] = [
     OpenRedirectCheck(),
     ReflectedXssCheck(),
     SqlInjectionCheck(),
+    PathTraversalCheck(),
+    CommandInjectionCheck(),
+    SsrfCheck(),
+    XxeCheck(),
+    DefaultCredentialsCheck(),
 ]
 
 __all__ = ["Context", "Check", "ALL_CHECKS"]

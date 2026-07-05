@@ -1,3 +1,8 @@
 # Nasiya Web Zaiflik Skaneri — bog'liqliklar
-# Yagona tashqi kutubxona: requests (qolgan hammasi Python standart kutubxonasi)
+# Asosiy tashqi kutubxona: requests (qolgani Python standart kutubxonasi)
 requests>=2.28
+
+# Ixtiyoriy: SPA (JavaScript) saytlarni render qilish uchun (--render)
+#   pip install playwright
+#   playwright install chromium
+# playwright>=1.40

@@ -21,7 +21,12 @@ Dastur OWASP Top 10 asosidagi eng muhim zaifliklarni qidiradi — jumladan
 | Tekshiruv | Zaiflik | Jiddiylik |
 |-----------|---------|-----------|
 | **SQL Injection** | Ma'lumotlar bazasiga aralashish (xato asosidagi + boolean) | 🟣 Kritik |
+| **Command Injection** | Serverda OS buyruqlarini bajarish (chiqish + vaqt asosidagi) | 🟣 Kritik |
+| **Path Traversal / LFI** | Server fayllarini (`/etc/passwd` ...) o'qish | 🟣 Kritik |
+| **XXE** | XML tashqi entity orqali fayl o'qish / SSRF | 🟣 Kritik |
+| **Standart parollar** | Login formada `admin/admin` kabi standart hisoblar (opt-in) | 🟣 Kritik |
 | **Maxfiy fayllar** | Ochiq `.env`, `.git/`, `.sql` zaxiralar, `config` fayllar | 🟣 Kritik / 🔴 Yuqori |
+| **SSRF** | Server nomidan ichki/bulut manzillarga so'rov | 🔴 Yuqori / ℹ️ nomzod |
 | **Reflected XSS** | Brauzerda begona JavaScript ishga tushirish | 🔴 Yuqori |
 | **Admin panellar** | Ochiq boshqaruv/kirish panellari (`/admin`, `/wp-admin` ...) | 🟠 O'rta |
 | **CSRF** | Formalarda anti-CSRF token yo'qligi | 🟠 O'rta |
@@ -56,8 +61,14 @@ Python 3.9+ talab qilinadi.
 ## Foydalanish
 
 ```bash
-# Oddiy skanerlash
+# Bitta sayt
 python3 nasiya_scan.py https://saytim.uz
+
+# Bir nechta sayt (loyihalaringiz ko'p bo'lsa) — parallel skanerlaydi
+python3 nasiya_scan.py https://sayt1.uz https://sayt2.uz https://sayt3.uz
+
+# Sayt ro'yxatini fayldan o'qish (har qatorda bitta manzil, # — izoh)
+python3 nasiya_scan.py --targets-file saytlar.txt --html hisobot.html
 
 # HTML va JSON hisobot bilan
 python3 nasiya_scan.py https://saytim.uz --html hisobot.html --json natija.json
@@ -65,24 +76,61 @@ python3 nasiya_scan.py https://saytim.uz --html hisobot.html --json natija.json
 # Xavfsiz (passiv) rejim — hech qanday test payload yubormaydi
 python3 nasiya_scan.py https://saytim.uz --passive
 
-# Ruxsat so'rovini o'tkazib yuborish (o'z saytingiz uchun)
-python3 nasiya_scan.py https://saytim.uz -y
+# SPA (React/Vue/Angular) saytlar — brauzer bilan render qilish
+python3 nasiya_scan.py https://app.saytim.uz --render
+
+# Standart parollarni ham sinash (ehtiyot bo'ling — hisob bloklanishi mumkin)
+python3 nasiya_scan.py https://saytim.uz --check-default-creds
 ```
+
+### `saytlar.txt` namunasi
+
+```
+# Mening loyihalarim
+https://sayt1.uz
+https://dukon.sayt2.uz
+https://api.sayt3.uz
+```
+
+### Bir nechta sayt hisoboti
+
+Bir nechta sayt berilganda dastur har birini alohida skanerlaydi va **umumiy
+yakuniy jadval** chiqaradi (qaysi saytda nechta kritik/yuqori zaiflik borligini
+bir qarashda ko'rasiz). `--html` berilsa, yuqorisida indeks-jadval bo'lgan
+yagona umumiy hisobot fayli yaratiladi.
 
 ### Asosiy parametrlar
 
 | Parametr | Vazifasi | Standart |
 |----------|----------|----------|
+| `--targets-file FAYL` | Sayt ro'yxati faylidan o'qish | — |
+| `--concurrency N` | Nechta saytni bir vaqtda skanerlash | 3 |
 | `--html FAYL` | HTML hisobotni saqlash | — |
 | `--json FAYL` | JSON natijani saqlash | — |
 | `--passive` | Faqat passiv tekshiruvlar (payloadsiz) | o'chiq |
-| `--max-pages N` | Maksimal sahifa soni | 40 |
+| `--render` | SPA saytlarni Playwright brauzeri bilan render qilish | o'chiq |
+| `--check-default-creds` | Login formada standart parollarni sinash | o'chiq |
+| `--max-pages N` | Har sayt uchun maksimal sahifa soni | 40 |
 | `--max-depth N` | Kroul chuqurligi | 3 |
 | `--delay S` | So'rovlar orasidagi kutish (soniya) | 0.3 |
 | `--timeout S` | So'rov kutish vaqti (soniya) | 10 |
 | `--insecure` | TLS sertifikatini tekshirmaslik | o'chiq |
 | `-y, --yes` | Ruxsat so'rovini avtomatik tasdiqlash | o'chiq |
 | `-q, --quiet` | Jarayon xabarlarini yashirish | o'chiq |
+
+### SPA (JavaScript) saytlar uchun `--render`
+
+React/Vue/Angular kabi saytlarda havolalar va formalar JavaScript orqali
+yuklanadi. `--render` bayrog'i sahifani haqiqiy brauzer (Chromium) ichida ishga
+tushirib, JS bilan qo'shilgan havola va formalarni ham aniqlaydi. Buning uchun
+Playwright kerak:
+
+```bash
+pip install playwright
+playwright install chromium
+```
+
+Playwright o'rnatilmagan bo'lsa, dastur ogohlantirib, oddiy rejimga qaytadi.
 
 ### Chiqish kodlari
 
@@ -102,11 +150,18 @@ scanner/
 │   ├── models.py           # Finding / Severity / ScanResult
 │   ├── http_client.py      # rate-limit + timeout bilan HTTP mijoz
 │   ├── crawler.py          # sayt bo'ylab yuruvchi + HTML parser
-│   ├── engine.py           # orkestratsiya
-│   ├── reporter.py         # konsol / JSON / HTML hisobot
+│   ├── render.py           # ixtiyoriy Playwright renderer (SPA)
+│   ├── engine.py           # orkestratsiya + ko'p saytli scan_many()
+│   ├── reporter.py         # konsol / JSON / HTML (bir va ko'p saytli)
 │   └── checks/             # har bir zaiflik uchun alohida modul
+│       ├── _injection.py   # inyeksiya nuqtalari (umumiy yordamchi)
 │       ├── sqli.py
+│       ├── command_injection.py
+│       ├── path_traversal.py
 │       ├── xss.py
+│       ├── ssrf.py
+│       ├── xxe.py
+│       ├── default_credentials.py
 │       ├── sensitive_files.py
 │       ├── csrf.py
 │       ├── open_redirect.py

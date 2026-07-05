@@ -117,8 +117,13 @@ def crawl(
     max_pages: int = 40,
     max_depth: int = 3,
     on_page=None,
+    renderer=None,
 ) -> CrawlOutput:
-    """Bir domen doirasida saytni aylanib chiqadi (BFS)."""
+    """Bir domen doirasida saytni aylanib chiqadi (BFS).
+
+    `renderer` berilsa (Playwright), SPA sahifalar brauzerda render qilinib,
+    JavaScript orqali qo'shilgan havola va formalar ham aniqlanadi.
+    """
 
     out = CrawlOutput()
     seen: set[str] = set()
@@ -146,6 +151,18 @@ def crawl(
             out.links_with_params.add(url)
 
         links, forms = parse_page(url, resp.text)
+
+        # SPA: render qilingan DOM'dan qo'shimcha havola/formalar
+        if renderer is not None:
+            rendered = renderer.render(url)
+            if rendered:
+                r_links, r_forms = parse_page(url, rendered)
+                links |= r_links
+                # takrorlanmagan formalarni qo'shamiz
+                known = {(f.action, tuple(f.input_names())) for f in forms}
+                for rf in r_forms:
+                    if (rf.action, tuple(rf.input_names())) not in known:
+                        forms.append(rf)
         for form in forms:
             if same_domain(form.action, start_url):
                 out.forms.append(form)

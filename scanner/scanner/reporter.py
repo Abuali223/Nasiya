@@ -65,8 +65,37 @@ def print_console(result: ScanResult, stream, use_color: bool | None = None) -> 
     w("\n")
 
 
-def to_json(result: ScanResult) -> str:
-    data = {
+def print_console_multi(results: list[ScanResult], stream, use_color: bool | None = None) -> None:
+    """Bir nechta sayt uchun: har biri + umumiy yakun."""
+    if use_color is None:
+        use_color = _supports_color(stream)
+
+    def c(text: str, code: str) -> str:
+        return f"{code}{text}{RESET}" if use_color else text
+
+    for r in results:
+        print_console(r, stream, use_color=use_color)
+
+    # umumiy yakuniy jadval
+    w = stream.write
+    w("\n" + "#" * 64 + "\n")
+    w(c(f" UMUMIY YAKUN — {len(results)} ta sayt\n", BOLD))
+    w("#" * 64 + "\n")
+    header = f"  {'Sayt':<40} {'Krit':>4} {'Yuq':>4} {'O‘rt':>4} {'Past':>4}\n"
+    w(c(header, BOLD) if use_color else header)
+    for r in results:
+        cnt = r.counts()
+        name = r.target if len(r.target) <= 40 else r.target[:37] + "..."
+        line = (f"  {name:<40} {cnt[Severity.CRITICAL]:>4} {cnt[Severity.HIGH]:>4} "
+                f"{cnt[Severity.MEDIUM]:>4} {cnt[Severity.LOW]:>4}\n")
+        code = Severity.CRITICAL.color if cnt[Severity.CRITICAL] else (
+            Severity.HIGH.color if cnt[Severity.HIGH] else "")
+        w(c(line, code) if (use_color and code) else line)
+    w("#" * 64 + "\n\n")
+
+
+def _result_dict(result: ScanResult) -> dict:
+    return {
         "target": result.target,
         "started_at": result.started_at,
         "finished_at": result.finished_at,
@@ -88,6 +117,17 @@ def to_json(result: ScanResult) -> str:
             for f in result.sorted_findings()
         ],
     }
+
+
+def to_json(result: ScanResult) -> str:
+    return json.dumps(_result_dict(result), ensure_ascii=False, indent=2)
+
+
+def to_json_multi(results: list[ScanResult]) -> str:
+    data = {
+        "scan_count": len(results),
+        "results": [_result_dict(r) for r in results],
+    }
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
@@ -100,9 +140,39 @@ _SEV_HTML = {
 }
 
 
-def to_html(result: ScanResult) -> str:
+_STYLE = """
+  body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:#f3f4f6;color:#111827}
+  header{background:#111827;color:#fff;padding:24px 32px}
+  header h1{margin:0 0 4px;font-size:20px}
+  header .muted{color:#9ca3af;font-size:13px}
+  .wrap{max-width:960px;margin:0 auto;padding:24px 16px}
+  .summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+  .scard{background:#fff;border-radius:10px;padding:16px 20px;min-width:100px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .snum{font-size:28px;font-weight:700}
+  .slbl{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em}
+  .finding{background:#fff;border-radius:10px;margin-bottom:16px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .fhead{padding:14px 18px;display:flex;align-items:center;gap:12px}
+  .badge{color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;text-transform:uppercase}
+  .ftitle{font-weight:600}
+  table.meta{width:100%;border-collapse:collapse}
+  table.meta th{text-align:left;width:120px;vertical-align:top;padding:8px 18px;color:#6b7280;font-weight:600;font-size:13px}
+  table.meta td{padding:8px 18px;font-size:14px}
+  code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px;word-break:break-all}
+  .ok{background:#fff;padding:24px;border-radius:10px;text-align:center;color:#059669;font-weight:600}
+  .site{margin-bottom:40px}
+  .site h2{font-size:17px;border-bottom:2px solid #e5e7eb;padding-bottom:6px}
+  .index{background:#fff;border-radius:10px;padding:8px 0;margin-bottom:28px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .index table{width:100%;border-collapse:collapse}
+  .index th,.index td{padding:10px 18px;text-align:left;font-size:14px;border-bottom:1px solid #f3f4f6}
+  .index th{color:#6b7280;font-size:12px;text-transform:uppercase}
+  .index td.num{text-align:center;font-weight:700}
+  .index a{color:#2563eb;text-decoration:none}
+  footer{text-align:center;color:#9ca3af;font-size:12px;padding:24px}
+"""
+
+
+def _findings_html(result: ScanResult) -> str:
     e = html.escape
-    counts = result.counts()
     rows = []
     for i, f in enumerate(result.sorted_findings(), 1):
         color = _SEV_HTML[f.severity]
@@ -122,45 +192,81 @@ def to_html(result: ScanResult) -> str:
             <tr><th>Yechim</th><td>{e(f.remediation)}</td></tr>
           </table>
         </div>""")
+    return "".join(rows) if rows else '<div class="ok">✔ Hech qanday zaiflik topilmadi.</div>'
 
-    summary_cells = "".join(
+
+def _summary_html(result: ScanResult) -> str:
+    e = html.escape
+    counts = result.counts()
+    return "".join(
         f'<div class="scard" style="border-top:4px solid {_SEV_HTML[s]}">'
         f'<div class="snum">{counts[s]}</div><div class="slbl">{e(s.value)}</div></div>'
         for s in Severity
     )
 
+
+def to_html(result: ScanResult) -> str:
+    e = html.escape
     return f"""<!doctype html>
 <html lang="uz"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nasiya Skaner hisoboti — {e(result.target)}</title>
-<style>
-  body{{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:#f3f4f6;color:#111827}}
-  header{{background:#111827;color:#fff;padding:24px 32px}}
-  header h1{{margin:0 0 4px;font-size:20px}}
-  header .muted{{color:#9ca3af;font-size:13px}}
-  .wrap{{max-width:960px;margin:0 auto;padding:24px 16px}}
-  .summary{{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}}
-  .scard{{background:#fff;border-radius:10px;padding:16px 20px;min-width:110px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
-  .snum{{font-size:28px;font-weight:700}}
-  .slbl{{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em}}
-  .finding{{background:#fff;border-radius:10px;margin-bottom:16px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
-  .fhead{{padding:14px 18px;display:flex;align-items:center;gap:12px}}
-  .badge{{color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;text-transform:uppercase}}
-  .ftitle{{font-weight:600}}
-  table.meta{{width:100%;border-collapse:collapse}}
-  table.meta th{{text-align:left;width:120px;vertical-align:top;padding:8px 18px;color:#6b7280;font-weight:600;font-size:13px}}
-  table.meta td{{padding:8px 18px;font-size:14px}}
-  code{{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px;word-break:break-all}}
-  .ok{{background:#fff;padding:24px;border-radius:10px;text-align:center;color:#059669;font-weight:600}}
-  footer{{text-align:center;color:#9ca3af;font-size:12px;padding:24px}}
-</style></head><body>
+<style>{_STYLE}</style></head><body>
 <header>
   <h1>🛡️ Nasiya Web Zaiflik Skaneri — Hisobot</h1>
   <div class="muted">Nishon: {e(result.target)} &nbsp;•&nbsp; {e(result.started_at)} → {e(result.finished_at)} &nbsp;•&nbsp; {len(result.pages_crawled)} sahifa</div>
 </header>
 <div class="wrap">
-  <div class="summary">{summary_cells}</div>
-  {''.join(rows) if rows else '<div class="ok">✔ Hech qanday zaiflik topilmadi.</div>'}
+  <div class="summary">{_summary_html(result)}</div>
+  {_findings_html(result)}
 </div>
-<footer>Nasiya Scanner v1.0 — faqat ruxsat etilgan xavfsizlik tekshiruvi uchun.</footer>
+<footer>Nasiya Scanner — faqat ruxsat etilgan xavfsizlik tekshiruvi uchun.</footer>
+</body></html>"""
+
+
+def to_html_multi(results: list[ScanResult]) -> str:
+    e = html.escape
+
+    # yuqoridagi indeks jadvali
+    index_rows = []
+    for i, r in enumerate(results):
+        c = r.counts()
+        index_rows.append(
+            f'<tr><td><a href="#site{i}">{e(r.target)}</a></td>'
+            f'<td class="num" style="color:{_SEV_HTML[Severity.CRITICAL]}">{c[Severity.CRITICAL]}</td>'
+            f'<td class="num" style="color:{_SEV_HTML[Severity.HIGH]}">{c[Severity.HIGH]}</td>'
+            f'<td class="num" style="color:{_SEV_HTML[Severity.MEDIUM]}">{c[Severity.MEDIUM]}</td>'
+            f'<td class="num" style="color:{_SEV_HTML[Severity.LOW]}">{c[Severity.LOW]}</td>'
+            f'<td class="num">{len(r.pages_crawled)}</td></tr>'
+        )
+    index = f"""<div class="index"><table>
+      <tr><th>Sayt</th><th>Kritik</th><th>Yuqori</th><th>O‘rta</th><th>Past</th><th>Sahifa</th></tr>
+      {''.join(index_rows)}
+    </table></div>"""
+
+    sections = []
+    for i, r in enumerate(results):
+        sections.append(f"""
+      <div class="site" id="site{i}">
+        <h2>🌐 {e(r.target)}</h2>
+        <div class="muted" style="color:#6b7280;font-size:13px;margin-bottom:12px">
+          {e(r.started_at)} → {e(r.finished_at)} • {len(r.pages_crawled)} sahifa</div>
+        <div class="summary">{_summary_html(r)}</div>
+        {_findings_html(r)}
+      </div>""")
+
+    return f"""<!doctype html>
+<html lang="uz"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nasiya Skaner — {len(results)} ta sayt hisoboti</title>
+<style>{_STYLE}</style></head><body>
+<header>
+  <h1>🛡️ Nasiya Web Zaiflik Skaneri — Umumiy hisobot</h1>
+  <div class="muted">{len(results)} ta sayt tekshirildi</div>
+</header>
+<div class="wrap">
+  {index}
+  {''.join(sections)}
+</div>
+<footer>Nasiya Scanner — faqat ruxsat etilgan xavfsizlik tekshiruvi uchun.</footer>
 </body></html>"""
