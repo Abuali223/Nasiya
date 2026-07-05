@@ -1,0 +1,18 @@
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.runtimeconfig.json
+
+# MAXFIY KALITLAR — hech qachon git'ga qo'shmang!
+*serviceAccount*.json
+firebase-adminsdk*.json
+*.pem
+*.key
+.env
+.env.*
+
+# OS / muharrir
+.DS_Store
+node_modules/
