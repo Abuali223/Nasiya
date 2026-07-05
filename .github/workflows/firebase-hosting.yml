@@ -1,0 +1,28 @@
+name: Firebase Hosting'ga deploy
+
+# main branchга push bo'lganda yoki qo'lda ishga tushirilganda deploy qiladi.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodni olish
+        uses: actions/checkout@v4
+
+      - name: Firebase Hosting'ga deploy qilish
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          # DIQQAT: bu kalit GitHub Secrets'da saqlanadi (Settings → Secrets and
+          # variables → Actions), kod ichida EMAS. Yangi (rotatsiya qilingan)
+          # service account JSON faylini FIREBASE_SERVICE_ACCOUNT nomi bilan qo'shing.
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: oqhaker-fbe2e
+          channelId: live
