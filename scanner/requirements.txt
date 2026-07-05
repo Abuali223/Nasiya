@@ -1,0 +1,3 @@
+# Nasiya Web Zaiflik Skaneri — bog'liqliklar
+# Yagona tashqi kutubxona: requests (qolgan hammasi Python standart kutubxonasi)
+requests>=2.28
