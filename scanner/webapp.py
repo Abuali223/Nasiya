@@ -16,6 +16,7 @@ DIQQAT: faqat o'zingizga tegishli yoki ruxsat etilgan saytlarni tekshiring.
 from __future__ import annotations
 
 import html
+import os
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -26,8 +27,16 @@ from scanner.engine import Scanner
 from scanner.http_client import HttpClient
 from scanner.reporter import to_html
 
-HOST = "127.0.0.1"
-PORT = 8777
+# Hosting muhitida (Render, Hugging Face ...) PORT o'zgaruvchisi beriladi.
+# U bo'lsa — hamma manzildan (0.0.0.0) tinglaymiz; bo'lmasa — faqat mahalliy.
+_ENV_PORT = os.environ.get("PORT")
+HOSTED = bool(_ENV_PORT)
+HOST = "0.0.0.0" if HOSTED else "127.0.0.1"
+PORT = int(_ENV_PORT) if _ENV_PORT else 8777
+
+# Ixtiyoriy kirish kodi (maxfiylik uchun). Render'da ACCESS_KEY o'zgaruvchisini
+# o'rnatsangiz, faqat shu kodni bilgan odam skanerdan foydalana oladi.
+ACCESS_KEY = os.environ.get("ACCESS_KEY", "").strip()
 
 PAGE = """<!doctype html>
 <html lang="uz"><head><meta charset="utf-8">
@@ -61,7 +70,7 @@ PAGE = """<!doctype html>
   <form method="post" action="/scan" onsubmit="document.getElementById('load').style.display='block';this.querySelector('button').disabled=true;">
     <label>Sayt manzili (URL)</label>
     <input type="text" name="target" placeholder="https://saytim.uz" required autofocus>
-
+    {access_field}
     <div class="row">
       <label class="chk"><input type="checkbox" name="passive"> Passiv rejim (payloadsiz, xavfsizroq)</label>
       <label class="chk"><input type="checkbox" name="creds"> Standart parollarni sinash</label>
@@ -72,6 +81,8 @@ PAGE = """<!doctype html>
 
     <div class="warn">⚠️ Faqat O'ZINGIZGA tegishli yoki tekshirishga ruxsatingiz bor
       saytlarni skanerlang.</div>
+    <label class="chk" style="margin-top:14px"><input type="checkbox" name="authorized" required>
+      Men bu saytni tekshirishga ruxsatim borligini tasdiqlayman</label>
 
     <button type="submit">Skanerlash</button>
     <div id="load"><span class="spin"></span>Skanerlanmoqda... (bir necha daqiqa olishi mumkin)</div>
@@ -79,6 +90,16 @@ PAGE = """<!doctype html>
   <div class="foot">Faqat ruxsat etilgan xavfsizlik tekshiruvi uchun.</div>
 </div>
 </body></html>"""
+
+
+def _render_page() -> str:
+    access_field = ""
+    if ACCESS_KEY:
+        access_field = (
+            '<label>Kirish kodi</label>'
+            '<input type="password" name="access_key" placeholder="Maxfiy kod" required>'
+        )
+    return PAGE.format(ver=__version__, access_field=access_field)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -95,7 +116,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
-            self._html(PAGE.format(ver=__version__))
+            self._html(_render_page())
         else:
             self._html("<h1>404</h1>", 404)
 
@@ -107,7 +128,24 @@ class Handler(BaseHTTPRequestHandler):
         form = parse_qs(self.rfile.read(length).decode("utf-8"))
         target = (form.get("target", [""])[0] or "").strip()
         if not target:
-            self._html(PAGE.format(ver=__version__))
+            self._html(_render_page())
+            return
+
+        # kirish kodi (agar o'rnatilgan bo'lsa)
+        if ACCESS_KEY and form.get("access_key", [""])[0] != ACCESS_KEY:
+            self._html(
+                "<div style='font-family:system-ui;padding:40px'>"
+                "<h2>Kirish kodi noto'g'ri</h2><a href='/'>← Orqaga</a></div>", 403
+            )
+            return
+
+        # ruxsat tasdig'i majburiy
+        if "authorized" not in form:
+            self._html(
+                "<div style='font-family:system-ui;padding:40px'>"
+                "<h2>Ruxsat tasdiqlanmadi</h2><p>Skanerlash uchun ruxsat belgisini "
+                "belgilashingiz kerak.</p><a href='/'>← Orqaga</a></div>", 400
+            )
             return
 
         passive = "passive" in form
@@ -143,14 +181,19 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     server = ThreadingHTTPServer((HOST, PORT), Handler)
-    url = f"http://{HOST}:{PORT}"
-    print("=" * 56)
-    print("  Nasiya Skaner — mahalliy interfeys ishga tushdi")
-    print(f"  Brauzerda oching:  {url}")
-    print("  To'xtatish uchun:  Ctrl+C")
-    print("=" * 56)
-    # brauzerni avtomatik ochamiz (bir soniyadan keyin)
-    threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+    if HOSTED:
+        # internet-hostingda ishlayapti — brauzer ochmaymiz
+        print(f"Nasiya Skaner hosting rejimida ishga tushdi (port {PORT}).")
+        if ACCESS_KEY:
+            print("Kirish kodi (ACCESS_KEY) yoqilgan.")
+    else:
+        url = f"http://127.0.0.1:{PORT}"
+        print("=" * 56)
+        print("  Nasiya Skaner — mahalliy interfeys ishga tushdi")
+        print(f"  Brauzerda oching:  {url}")
+        print("  To'xtatish uchun:  Ctrl+C")
+        print("=" * 56)
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
