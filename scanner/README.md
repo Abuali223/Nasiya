@@ -13,6 +13,23 @@ jiddiy ekanini hamda qanday tuzatishni aytib beradi.
 
 ---
 
+## 🖥️ Kompyuterda ishlatish (eng oson — brauzer interfeysi)
+
+Terminalni bilmasangiz ham bo'ladi. Dastur **sizning kompyuteringizda** ishlaydi —
+hosting, pul yoki ro'yxatdan o'tish **kerak emas**.
+
+1. Python o'rnatilgan bo'lsin (https://python.org — "Add to PATH" ni belgilang).
+2. Bu papkani kompyuterga yuklab oling (GitHub'da **Code → Download ZIP**, so'ng arxivni oching).
+3. Ishga tushiring:
+   - **Windows:** `run.bat` faylini **ikki marta bosing**.
+   - **Mac/Linux:** terminalda `./run.sh` yoki `python3 webapp.py`.
+4. Brauzer avtomatik ochiladi: **http://127.0.0.1:8777**
+5. Sayt manzilini yozib **"Skanerlash"** tugmasini bosing — natija shu yerda chiqadi.
+
+To'xtatish uchun terminal oynasida **Ctrl+C** bosing.
+
+---
+
 ## Nimalarni aniqlaydi
 
 Dastur OWASP Top 10 asosidagi eng muhim zaifliklarni qidiradi — jumladan
@@ -144,7 +161,9 @@ Playwright o'rnatilmagan bo'lsa, dastur ogohlantirib, oddiy rejimga qaytadi.
 
 ```
 scanner/
-├── nasiya_scan.py          # CLI kirish nuqtasi
+├── nasiya_scan.py          # CLI kirish nuqtasi (terminal)
+├── webapp.py               # mahalliy brauzer interfeysi (http://127.0.0.1:8777)
+├── run.bat / run.sh        # bir bosishda ishga tushirish (Windows / Mac-Linux)
 ├── requirements.txt
 ├── scanner/
 │   ├── models.py           # Finding / Severity / ScanResult
