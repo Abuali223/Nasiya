@@ -1,0 +1,18 @@
+# Render.com uchun sozlama (Blueprint).
+# Bu fayl Render'ga skanerni qanday ishga tushirishni aytadi.
+# Render'da: New → Blueprint → shu repozitoriyani tanlang.
+services:
+  - type: web
+    name: nasiya-scanner
+    runtime: python
+    rootDir: scanner
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python webapp.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Maxfiylik uchun kirish kodi. Render panelida qiymatini o'zgartiring;
+      # bo'sh qoldirsangiz, havolaga ega har kim foydalana oladi.
+      - key: ACCESS_KEY
+        sync: false
